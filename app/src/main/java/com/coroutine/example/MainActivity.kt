@@ -3,11 +3,14 @@ package com.coroutine.example
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import kotlinx.android.synthetic.main.activity_main.base
+import kotlinx.android.synthetic.main.activity_main.jump
 import kotlinx.android.synthetic.main.activity_main.tv
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.newSingleThreadContext
 import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -17,6 +20,9 @@ class MainActivity : AppCompatActivity() {
     setContentView(R.layout.activity_main)
     base.setOnClickListener {
       base()
+    }
+    jump.setOnClickListener {
+      jump()
     }
   }
 
@@ -36,13 +42,33 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
+  private fun jump(){
+    val string = StringBuffer()
+    // use 可以在不使用线程后释放线程
+    newSingleThreadContext("Ctx1").use {
+      ctx1->
+      newSingleThreadContext("Ctx2").use {
+        ctx2->
+        runBlocking(ctx1) {
+          log(string,"Started in ctx1")
+          withContext(ctx2){
+            log(string,"Working in ctx2")
+          }
+          log(string,"Back to ctx1")
+          showContent(string.toString())
+        }
+      }
+    }
+  }
+
   private fun log(string: StringBuffer, msg: String) {
     string.append("\n[${Thread.currentThread().name}] $msg")
   }
 
   private fun showContent(content: String) {
-    launch(UI) {
+    val job = launch(UI) {
       tv.append(content)
     }
   }
+
 }

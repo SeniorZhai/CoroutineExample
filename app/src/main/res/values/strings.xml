@@ -1,4 +1,5 @@
 <resources>
   <string name="app_name">CoroutineExample</string>
   <string name="title_base">base</string>
+  <string name="title_jump">jump</string>
 </resources>
