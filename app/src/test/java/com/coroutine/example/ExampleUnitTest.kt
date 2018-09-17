@@ -1,12 +1,14 @@
 package com.coroutine.example
 
 import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.CompletableDeferred
 import kotlinx.coroutines.experimental.Job
 import kotlinx.coroutines.experimental.cancelAndJoin
 import kotlinx.coroutines.experimental.cancelChildren
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.ReceiveChannel
 import kotlinx.coroutines.experimental.channels.SendChannel
+import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.channels.produce
 import kotlinx.coroutines.experimental.delay
@@ -297,8 +299,9 @@ class ExampleUnitTest {
   private var sum = 0
   @Test
   fun singleThread() = runBlocking {
-    massiveRun(CommonPool){
-      withContext(coroutineContext) { // 单线程保证数据的线程安全
+    massiveRun(CommonPool) {
+      withContext(coroutineContext) {
+        // 单线程保证数据的线程安全
         sum++
       }
     }
@@ -306,8 +309,8 @@ class ExampleUnitTest {
   }
 
   @Test
-  fun singleThread2() =  runBlocking {
-    massiveRun(newSingleThreadContext("CoroutineContext")){
+  fun singleThread2() = runBlocking {
+    massiveRun(newSingleThreadContext("CoroutineContext")) {
       sum++
     }
     println("Sum = $sum")
@@ -318,11 +321,35 @@ class ExampleUnitTest {
   @Test
   fun mutex() = runBlocking {
     massiveRun(CommonPool) {
-      mutex.withLock { // 保证关键代码锁住不被并发 且mutex.lock是一个suspending function 不会锁死进程
-        sum ++
+      mutex.withLock {
+        // 保证关键代码锁住不被并发 且mutex.lock是一个suspending function 不会锁死进程
+        sum++
       }
     }
     println("Sum = $sum")
   }
 
+  // actor就是一个协程协程会按序执行，比锁的效率高，因为它不需要频繁地切换上下文
+  fun counterActor() = actor<CounterMsg> {
+    var counter = 0
+    for (msg in channel) {
+      when (msg) {
+        is IncConter -> counter++
+        is GetCounter -> msg.response.complete(counter)
+      }
+    }
+  }
+
+  @Test
+  fun actor() = runBlocking<Unit> {
+    val counter = counterActor()
+    massiveRun(CommonPool) {
+      counter.send(IncConter) // 增加技术
+    }
+    // CompletableDeferred 表示未来可以获取的某个值
+    val response = CompletableDeferred<Int>()
+    counter.send(GetCounter(response)) // 发送一个请求
+    println("Counter = ${response.await()}")
+    counter.close()
+  }
 }
