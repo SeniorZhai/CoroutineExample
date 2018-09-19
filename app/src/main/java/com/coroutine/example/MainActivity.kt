@@ -2,17 +2,30 @@ package com.coroutine.example
 
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
+import kotlinx.android.synthetic.main.activity_main.actor
 import kotlinx.android.synthetic.main.activity_main.base
+import kotlinx.android.synthetic.main.activity_main.conflated
 import kotlinx.android.synthetic.main.activity_main.jump
 import kotlinx.android.synthetic.main.activity_main.tv
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.Job
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.async
+import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newSingleThreadContext
 import kotlinx.coroutines.experimental.runBlocking
 import kotlinx.coroutines.experimental.withContext
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(),JobHolder {
+
+  override val job = Job()
+
+  override fun onDestroy() {
+    super.onDestroy()
+    job.cancel()
+  }
 
   var index = 0
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,6 +36,15 @@ class MainActivity : AppCompatActivity() {
     }
     jump.setOnClickListener {
       jump()
+    }
+    actor.onClick {
+      delay(1000)
+      showContent("\nClick")
+    }
+    conflated.onConflatedClick {
+      showContent("\nconflated start")
+      delay(1000)
+      showContent("\nconflated end")
     }
   }
 
@@ -66,7 +88,7 @@ class MainActivity : AppCompatActivity() {
   }
 
   private fun showContent(content: String) {
-    val job = launch(UI) {
+     GlobalScope.launch(Dispatchers.Main) {
       tv.append(content)
     }
   }

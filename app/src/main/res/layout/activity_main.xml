@@ -46,6 +46,22 @@
         android:text="@string/title_jump"
         />
 
+    <Button
+        android:id="@+id/actor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/title_actor"
+        />
+
+    <Button
+        android:id="@+id/conflated"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/title_actor_conflated"
+        />
+
   </LinearLayout>
 
 </android.support.constraint.ConstraintLayout>
