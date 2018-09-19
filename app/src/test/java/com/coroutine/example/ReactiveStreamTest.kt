@@ -18,6 +18,7 @@ import kotlinx.coroutines.experimental.rx2.consumeEach
 import kotlinx.coroutines.experimental.rx2.rxFlowable
 import kotlinx.coroutines.experimental.yield
 import org.junit.Test
+import org.reactivestreams.Publisher
 import kotlin.coroutines.experimental.CoroutineContext
 
 class ReactiveStreamTest {
@@ -159,7 +160,7 @@ class ReactiveStreamTest {
   }
 
   @Test
-  fun broadcastTest() = runBlocking {
+  fun broadcastTest() = runBlocking<Unit> {
     val broadcast = ConflatedBroadcastChannel<String>()
     broadcast.offer("one")
     broadcast.offer("two")
@@ -172,8 +173,22 @@ class ReactiveStreamTest {
     broadcast.close()
   }
 
+  @Test
+  fun mapTest() = runBlocking {
+    rang(coroutineContext, 1, 5)
+        .fusedFilterMap(coroutineContext, { it % 2 == 0 }, { "$it is even" })
+        .consumeEach { println(it) }
+  }
+
 }
 
 fun CoroutineScope.rang(context: CoroutineContext, start: Int, count: Int) = publish<Int> {
   for (x in start until start + count) send(x)
+}
+
+fun <T, R> Publisher<T>.fusedFilterMap(context: CoroutineContext, predicate: (T) -> Boolean,
+    mapper: (T) -> R) = publish<R> {
+  consumeEach {
+    if (predicate(it)) send(mapper(it))
+  }
 }
