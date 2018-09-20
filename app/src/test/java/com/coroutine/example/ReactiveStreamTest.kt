@@ -185,31 +185,54 @@ class ReactiveStreamTest {
 
   @Test
   fun takeTest() = runBlocking {
-    val slowNums = rangeWithInterval(this.coroutineContext,200,1,10)
-    val stop = rangeWithInterval(this.coroutineContext,500,1,10)
-    slowNums.takeUntil(coroutineContext,stop).consumeEach {
+    val slowNums = rangeWithInterval(this.coroutineContext, 200, 1, 10)
+    val stop = rangeWithInterval(this.coroutineContext, 500, 1, 10)
+    slowNums.takeUntil(coroutineContext, stop).consumeEach {
       println(it)
     }
   }
 
   // 一个带延迟的channel 用作测试
-  private fun rangeWithInterval(context: CoroutineContext, time: Long, start: Int, count: Int) = publish<Int>(context) {
+  private fun rangeWithInterval(context: CoroutineContext, time: Long, start: Int,
+      count: Int) = publish<Int>(context) {
     for (x in start until start + count) {
       delay(time) // 发送前停顿
       send(x)
     }
   }
 
+  private fun testPub(context: CoroutineContext) = publish(context) {
+    send(rangeWithInterval(context, 250, 1, 4))
+    delay(100)
+    send(rangeWithInterval(context, 500, 11, 3))
+    delay(1100)
+  }
 
+  @Test
+  fun pubMerge() = runBlocking {
+    testPub(coroutineContext).merge(coroutineContext).consumeEach {
+      println(it)
+    }
+  }
 }
 
-fun <T,U> Publisher<T>.takeUntil(context: CoroutineContext,other:Publisher<U>) = GlobalScope.publish<T>(context) {
-  this@takeUntil.openSubscription().use {thisChannl->
-    other.openSubscription().use {otherChannel->
-        whileSelect {
-          otherChannel.onReceive{false} // 从other收到任何数据跳出循环
-          thisChannl.onReceive{send(it);true} // 从thisChannle收到数据继续循环
-        }
+fun <T> Publisher<Publisher<T>>.merge(context: CoroutineContext) = publish<T>(context) {
+  // 没收到一个数据 开启一个协程 由这个协程转发
+  consumeEach { pub ->
+    launch(coroutineContext) {
+      pub.consumeEach { send(it) }
+    }
+  }
+}
+
+fun <T, U> Publisher<T>.takeUntil(context: CoroutineContext,
+    other: Publisher<U>) = GlobalScope.publish<T>(context) {
+  this@takeUntil.openSubscription().use { thisChannl ->
+    other.openSubscription().use { otherChannel ->
+      whileSelect {
+        otherChannel.onReceive { false } // 从other收到任何数据跳出循环
+        thisChannl.onReceive { send(it);true } // 从thisChannle收到数据继续循环
+      }
     }
   }
 }
