@@ -4,10 +4,12 @@ import io.reactivex.Flowable
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.BehaviorSubject
 import kotlinx.coroutines.experimental.CoroutineScope
+import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.experimental.channels.consume
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.channels.produce
+import kotlinx.coroutines.experimental.channels.use
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.reactive.consumeEach
@@ -16,6 +18,7 @@ import kotlinx.coroutines.experimental.reactive.publish
 import kotlinx.coroutines.experimental.runBlocking
 import kotlinx.coroutines.experimental.rx2.consumeEach
 import kotlinx.coroutines.experimental.rx2.rxFlowable
+import kotlinx.coroutines.experimental.selects.whileSelect
 import kotlinx.coroutines.experimental.yield
 import org.junit.Test
 import org.reactivestreams.Publisher
@@ -180,6 +183,35 @@ class ReactiveStreamTest {
         .consumeEach { println(it) }
   }
 
+  @Test
+  fun takeTest() = runBlocking {
+    val slowNums = rangeWithInterval(this.coroutineContext,200,1,10)
+    val stop = rangeWithInterval(this.coroutineContext,500,1,10)
+    slowNums.takeUntil(coroutineContext,stop).consumeEach {
+      println(it)
+    }
+  }
+
+  // 一个带延迟的channel 用作测试
+  private fun rangeWithInterval(context: CoroutineContext, time: Long, start: Int, count: Int) = publish<Int>(context) {
+    for (x in start until start + count) {
+      delay(time) // 发送前停顿
+      send(x)
+    }
+  }
+
+
+}
+
+fun <T,U> Publisher<T>.takeUntil(context: CoroutineContext,other:Publisher<U>) = GlobalScope.publish<T>(context) {
+  this@takeUntil.openSubscription().use {thisChannl->
+    other.openSubscription().use {otherChannel->
+        whileSelect {
+          otherChannel.onReceive{false} // 从other收到任何数据跳出循环
+          thisChannl.onReceive{send(it);true} // 从thisChannle收到数据继续循环
+        }
+    }
+  }
 }
 
 fun CoroutineScope.rang(context: CoroutineContext, start: Int, count: Int) = publish<Int> {
